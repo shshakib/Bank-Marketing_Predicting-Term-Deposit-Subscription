@@ -90,7 +90,7 @@ python src/models/train_model.py `
 
 ## MLflow Tracking
 
-MLflow is implemented as the experiment-tracking layer for this project. The local tracking server is defined in `deployment/mlflow/docker-compose.yaml`, and it stores the backend database and artifacts in a persistent Docker volume.
+MLflow is implemented as the experiment-tracking layer for this project. The local tracking server is defined in `deployment/mlflow/docker-compose.yaml`, stores the backend database and artifacts in a persistent Docker volume, and proxies artifact uploads through the MLflow HTTP server. This keeps local runs and GitHub Actions from trying to write directly to container-only paths.
 
 Start MLflow:
 

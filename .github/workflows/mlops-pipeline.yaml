@@ -32,6 +32,9 @@ on:
   release:
     types: [created]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   data-processing:
     name: Data Processing And Features

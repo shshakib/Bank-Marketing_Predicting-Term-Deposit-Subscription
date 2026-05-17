@@ -1,0 +1,17 @@
+model: bank_deposit_model
+algorithm: GradientBoosting
+target_variable: deposit
+metrics:
+  accuracy: 0.7227944469323779
+  sensitivity: 0.7957446808510639
+  specificity: 0.6417769376181475
+  balanced_accuracy: 0.7187608092346056
+  precision_yes: 0.7388465723612623
+  recall_yes: 0.6417769376181475
+  f1: 0.6868993424380375
+  roc_auc: 0.7846583276354422
+dependencies:
+  python_version: 3.11.9
+  scikit_learn_version: 1.2.2
+  pandas_version: 1.5.3
+  numpy_version: 1.24.3

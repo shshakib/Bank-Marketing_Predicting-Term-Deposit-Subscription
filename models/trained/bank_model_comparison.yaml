@@ -1,0 +1,145 @@
+results:
+- scenario: No Duration
+  model: Random Forest
+  metrics:
+    accuracy: 0.7133900582176445
+    sensitivity: 0.7778723404255319
+    specificity: 0.6417769376181475
+    balanced_accuracy: 0.7098246390218397
+    best_mtry: 3
+    n_trees: 500
+  params:
+    keep_duration: false
+    cv_folds: 5
+    random_state: 85
+- scenario: No Duration
+  model: GBM
+  metrics:
+    accuracy: 0.7227944469323779
+    sensitivity: 0.7957446808510639
+    specificity: 0.6417769376181475
+    balanced_accuracy: 0.7187608092346056
+    best_learning_rate: 0.05
+    best_max_depth: 7
+    best_min_samples_leaf: 5
+    best_n_estimators: 500
+  params:
+    keep_duration: false
+    cv_folds: 5
+    random_state: 85
+- scenario: No Duration
+  model: Logistic Regression
+  metrics:
+    accuracy: 0.6963725929243171
+    sensitivity: 0.7651063829787234
+    specificity: 0.6200378071833649
+    balanced_accuracy: 0.6925720950810441
+  params:
+    keep_duration: false
+    cv_folds: 5
+    random_state: 85
+- scenario: No Duration
+  model: LDA
+  metrics:
+    accuracy: 0.696820420958352
+    sensitivity: 0.8161702127659575
+    specificity: 0.5642722117202268
+    balanced_accuracy: 0.6902212122430922
+  params:
+    keep_duration: false
+    cv_folds: 5
+    random_state: 85
+- scenario: No Duration
+  model: Logistic/LDA MCCV
+  metrics:
+    mccv_iterations: 20
+  mccv_summary:
+  - model: LDA
+    train_iterations: 20
+    accuracy_mean: 0.7019265232974911
+    accuracy_std: 0.012927291455522799
+    sensitivity_mean: 0.8157871933591107
+    specificity_mean: 0.5757923900871789
+    balanced_accuracy_mean: 0.6957897917231447
+  - model: Logistic Regression
+    train_iterations: 20
+    accuracy_mean: 0.698252688172043
+    accuracy_std: 0.014032670038858278
+    sensitivity_mean: 0.7900117461239937
+    specificity_mean: 0.5965712681687724
+    balanced_accuracy_mean: 0.6932915071463831
+  params:
+    keep_duration: false
+    random_state: 85
+- scenario: With Duration
+  model: Random Forest
+  metrics:
+    accuracy: 0.8441558441558441
+    sensitivity: 0.8127659574468085
+    specificity: 0.8790170132325141
+    balanced_accuracy: 0.8458914853396613
+    best_mtry: 6
+    n_trees: 500
+  params:
+    keep_duration: true
+    cv_folds: 5
+    random_state: 85
+- scenario: With Duration
+  model: GBM
+  metrics:
+    accuracy: 0.8522167487684729
+    sensitivity: 0.8272340425531914
+    specificity: 0.8799621928166351
+    balanced_accuracy: 0.8535981176849132
+    best_learning_rate: 0.05
+    best_max_depth: 7
+    best_min_samples_leaf: 5
+    best_n_estimators: 500
+  params:
+    keep_duration: true
+    cv_folds: 5
+    random_state: 85
+- scenario: With Duration
+  model: Logistic Regression
+  metrics:
+    accuracy: 0.819525302283923
+    sensitivity: 0.8417021276595744
+    specificity: 0.7948960302457467
+    balanced_accuracy: 0.8182990789526605
+  params:
+    keep_duration: true
+    cv_folds: 5
+    random_state: 85
+- scenario: With Duration
+  model: LDA
+  metrics:
+    accuracy: 0.8069861173309449
+    sensitivity: 0.8561702127659574
+    specificity: 0.7523629489603024
+    balanced_accuracy: 0.80426658086313
+  params:
+    keep_duration: true
+    cv_folds: 5
+    random_state: 85
+- scenario: With Duration
+  model: Logistic/LDA MCCV
+  metrics:
+    mccv_iterations: 20
+  mccv_summary:
+  - model: LDA
+    train_iterations: 20
+    accuracy_mean: 0.8148297491039427
+    accuracy_std: 0.011196565916374216
+    sensitivity_mean: 0.8714636698507368
+    specificity_mean: 0.7519617853685351
+    balanced_accuracy_mean: 0.811712727609636
+  - model: Logistic Regression
+    train_iterations: 20
+    accuracy_mean: 0.8209229390681003
+    accuracy_std: 0.012549097144108266
+    sensitivity_mean: 0.8458313044723992
+    specificity_mean: 0.7930608347904441
+    balanced_accuracy_mean: 0.8194460696314216
+  params:
+    keep_duration: true
+    random_state: 85

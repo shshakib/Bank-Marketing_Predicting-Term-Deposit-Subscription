@@ -1,6 +1,6 @@
 # Bank Marketing - Predicting Term Deposit Subscription
 
-This project adapts the original MLOps template into an end-to-end bank marketing classifier. It predicts whether a customer is likely to subscribe to a term deposit using the Bank Marketing dataset.
+This project is an end-to-end MLOps workflow for a bank marketing classifier. It predicts whether a customer is likely to subscribe to a term deposit using the Bank Marketing dataset.
 
 Here is the production feature set:
 
@@ -132,6 +132,8 @@ curl -X POST "http://localhost:8000/predict" `
   -d "{\"age\":41,\"job\":\"technician\",\"marital\":\"married\",\"education\":\"secondary\",\"default\":\"no\",\"balance\":1270,\"housing\":\"yes\",\"loan\":\"no\",\"contact\":\"cellular\",\"day\":15,\"month\":\"may\",\"campaign\":2,\"previous\":0,\"poutcome\":\"unknown\"}"
 ```
 
+The response includes `subscription_probability`, `probability_range`, and `top_model_factors`. The probability range is a simple display range around the score, not a statistical confidence interval. The health endpoint reports the loaded model/preprocessor paths and returns HTTP 503 if either artifact is unavailable.
+
 ## Streamlit
 
 Run locally:
@@ -149,6 +151,8 @@ Build and run FastAPI plus Streamlit:
 ```bash
 docker compose up --build
 ```
+
+During local Docker Compose runs, `./models/trained` is mounted into the FastAPI container so retrained model artifacts are served without rebuilding the image. The image still copies the artifacts as a fallback for standalone Docker runs.
 
 Open:
 

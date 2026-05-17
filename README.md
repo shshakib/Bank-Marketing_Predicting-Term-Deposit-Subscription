@@ -193,3 +193,13 @@ The workflows in `.github/workflows/` run the same pipeline:
 4. Run model comparison and log it to MLflow
 5. Train `bank_deposit_model.pkl`
 6. Build and publish the FastAPI container
+
+Docker image publishing is optional for manual runs. To push images to Docker Hub, configure these GitHub repository settings:
+
+- Repository variable: `DOCKERHUB_USERNAME`
+- Repository secret: `DOCKERHUB_TOKEN`
+
+When publishing is enabled, the workflow pushes:
+
+- `docker.io/<DOCKERHUB_USERNAME>/bank-marketing-fastapi`
+- `docker.io/<DOCKERHUB_USERNAME>/bank-marketing-streamlit`

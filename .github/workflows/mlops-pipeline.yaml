@@ -1,0 +1,296 @@
+name: Bank Marketing MLOps Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_all:
+        description: "Run the full pipeline"
+        required: false
+        type: boolean
+        default: true
+      run_data_processing:
+        description: "Run only the data processing and feature engineering job"
+        required: false
+        type: boolean
+        default: false
+      run_model_training:
+        description: "Run through model comparison and model training"
+        required: false
+        type: boolean
+        default: false
+      run_build_and_publish:
+        description: "Run through Docker build and image validation"
+        required: false
+        type: boolean
+        default: false
+      push_images:
+        description: "Push FastAPI and Streamlit images to Docker Hub"
+        required: false
+        type: boolean
+        default: false
+
+  release:
+    types: [created]
+
+jobs:
+  data-processing:
+    name: Data Processing And Features
+    runs-on: ubuntu-latest
+
+    if: |
+      github.event_name == 'release' ||
+      inputs.run_all ||
+      inputs.run_data_processing ||
+      inputs.run_model_training ||
+      inputs.run_build_and_publish
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate Python source
+        run: python -m compileall src streamlit_app
+
+      - name: Clean production dataset
+        run: |
+          python src/data/run_processing.py \
+            --input data/raw/bank.csv \
+            --output data/processed/cleaned_bank_data.csv
+
+      - name: Create EDA figures
+        run: |
+          python src/visualization/create_plots.py \
+            --input data/raw/bank.csv \
+            --output-dir reports/figures
+
+      - name: Engineer production features
+        run: |
+          python src/features/engineer.py \
+            --input data/processed/cleaned_bank_data.csv \
+            --output data/processed/featured_bank_data.csv \
+            --preprocessor models/trained/preprocessor.pkl
+
+      - name: Build with-duration diagnostic features
+        run: |
+          python src/data/run_processing.py \
+            --input data/raw/bank.csv \
+            --output data/processed/cleaned_bank_data_with_duration.csv \
+            --keep-duration
+          python src/features/engineer.py \
+            --input data/processed/cleaned_bank_data_with_duration.csv \
+            --output data/processed/featured_bank_data_with_duration.csv \
+            --preprocessor models/trained/preprocessor_with_duration.pkl
+
+      - name: Upload processed data
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-data
+          path: |
+            data/processed/featured_bank_data.csv
+            data/processed/featured_bank_data_with_duration.csv
+
+      - name: Upload EDA figures
+        uses: actions/upload-artifact@v4
+        with:
+          name: eda-figures
+          path: reports/figures/
+
+      - name: Upload preprocessors
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprocessors
+          path: |
+            models/trained/preprocessor.pkl
+            models/trained/preprocessor_with_duration.pkl
+
+  model-training:
+    name: Model Comparison And Training
+    needs: data-processing
+    runs-on: ubuntu-latest
+
+    if: |
+      github.event_name == 'release' ||
+      inputs.run_all ||
+      inputs.run_model_training ||
+      inputs.run_build_and_publish
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download processed data
+        uses: actions/download-artifact@v4
+        with:
+          name: processed-data
+          path: data/processed/
+
+      - name: Download preprocessors
+        uses: actions/download-artifact@v4
+        with:
+          name: preprocessors
+          path: models/trained/
+
+      - name: Start MLflow tracking server
+        run: docker compose -f deployment/mlflow/docker-compose.yaml up -d
+
+      - name: Wait for MLflow
+        run: |
+          for i in {1..20}; do
+            curl -fsS http://localhost:5555/health && exit 0
+            sleep 5
+          done
+          docker compose -f deployment/mlflow/docker-compose.yaml logs mlflow
+          exit 1
+
+      - name: Run model comparison
+        run: |
+          python src/models/compare_models.py \
+            --raw-data data/raw/bank.csv \
+            --output models/trained/bank_model_comparison.yaml \
+            --mlflow-tracking-uri http://localhost:5555 \
+            --mccv-iterations 20 \
+            --rf-trees 500
+
+      - name: Train selected production model
+        run: |
+          python src/models/train_model.py \
+            --config configs/model_config.yaml \
+            --data data/processed/featured_bank_data.csv \
+            --models-dir models \
+            --mlflow-tracking-uri http://localhost:5555
+
+      - name: Upload trained model artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: |
+            models/trained/bank_deposit_model.pkl
+            models/trained/bank_deposit_model_metrics.yaml
+            models/trained/preprocessor.pkl
+            models/trained/bank_model_comparison.yaml
+            models/trained/bank_model_comparison.csv
+
+      - name: Stop MLflow tracking server
+        if: always()
+        run: docker compose -f deployment/mlflow/docker-compose.yaml down -v || true
+
+  build-and-publish:
+    name: Build Test And Optional Publish
+    needs: model-training
+    runs-on: ubuntu-latest
+
+    if: |
+      github.event_name == 'release' ||
+      inputs.run_all ||
+      inputs.run_build_and_publish
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download trained model artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-model
+          path: models/trained/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and test FastAPI image
+        run: |
+          docker build -t bank-marketing-fastapi:ci -f Dockerfile .
+          docker run -d -p 8000:8000 --name test-api bank-marketing-fastapi:ci
+
+          api_healthy=false
+          for i in {1..20}; do
+            if curl -fsS http://localhost:8000/health; then
+              api_healthy=true
+              break
+            fi
+            sleep 5
+          done
+          if [ "$api_healthy" != "true" ]; then
+            docker logs test-api
+            exit 1
+          fi
+
+          curl -fsS -X POST "http://localhost:8000/predict" \
+            -H "Content-Type: application/json" \
+            -d '{"age":41,"job":"technician","marital":"married","education":"secondary","default":"no","balance":1270,"housing":"yes","loan":"no","contact":"cellular","day":15,"month":"may","campaign":2,"previous":0,"poutcome":"unknown"}' \
+            | grep -q "subscription_probability"
+
+          docker logs test-api
+
+      - name: Build and test Streamlit image
+        run: |
+          docker build -t bank-marketing-streamlit:ci -f streamlit_app/Dockerfile streamlit_app
+          docker run -d -p 8501:8501 --name test-streamlit bank-marketing-streamlit:ci
+
+          streamlit_healthy=false
+          for i in {1..20}; do
+            if curl -fsS http://localhost:8501/_stcore/health; then
+              streamlit_healthy=true
+              break
+            fi
+            sleep 5
+          done
+          if [ "$streamlit_healthy" != "true" ]; then
+            docker logs test-streamlit
+            exit 1
+          fi
+
+          docker logs test-streamlit
+
+      - name: Clean up test containers
+        if: always()
+        run: |
+          docker stop test-api test-streamlit || true
+          docker rm test-api test-streamlit || true
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'release' || inputs.push_images
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push Docker images to Docker Hub
+        if: github.event_name == 'release' || inputs.push_images
+        run: |
+          COMMIT_HASH=$(echo "${GITHUB_SHA}" | cut -c1-7)
+
+          docker tag bank-marketing-fastapi:ci docker.io/${{ vars.DOCKERHUB_USERNAME }}/bank-marketing-fastapi:${COMMIT_HASH}
+          docker tag bank-marketing-fastapi:ci docker.io/${{ vars.DOCKERHUB_USERNAME }}/bank-marketing-fastapi:latest
+          docker tag bank-marketing-streamlit:ci docker.io/${{ vars.DOCKERHUB_USERNAME }}/bank-marketing-streamlit:${COMMIT_HASH}
+          docker tag bank-marketing-streamlit:ci docker.io/${{ vars.DOCKERHUB_USERNAME }}/bank-marketing-streamlit:latest
+
+          docker push docker.io/${{ vars.DOCKERHUB_USERNAME }}/bank-marketing-fastapi:${COMMIT_HASH}
+          docker push docker.io/${{ vars.DOCKERHUB_USERNAME }}/bank-marketing-fastapi:latest
+          docker push docker.io/${{ vars.DOCKERHUB_USERNAME }}/bank-marketing-streamlit:${COMMIT_HASH}
+          docker push docker.io/${{ vars.DOCKERHUB_USERNAME }}/bank-marketing-streamlit:latest

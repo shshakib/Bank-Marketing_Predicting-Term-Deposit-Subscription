@@ -1,5 +1,7 @@
 """FastAPI application that exposes the trained bank marketing classifier."""
 
+from __future__ import annotations
+
 from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -29,8 +31,8 @@ app.add_middleware(
 
 
 @app.get("/health", response_model=dict)
-async def health_check(response: Response):
-    """Report whether the serving artifacts are loaded and which files are used."""
+async def health_check(response: Response) -> dict[str, object]:
+    """Report model readiness for load balancers, CI, and operators."""
     health = get_model_health()
     if not health["model_loaded"]:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -38,8 +40,8 @@ async def health_check(response: Response):
 
 
 @app.post("/predict", response_model=PredictionResponse)
-async def predict(request: BankPredictionRequest):
-    """Score one customer record."""
+async def predict(request: BankPredictionRequest) -> PredictionResponse:
+    """Score one customer and return the subscription probability."""
     try:
         return predict_subscription(request)
     except RuntimeError as exc:
@@ -49,8 +51,8 @@ async def predict(request: BankPredictionRequest):
 
 
 @app.post("/batch-predict", response_model=list[PredictionResponse])
-async def batch_predict_endpoint(requests: list[BankPredictionRequest]):
-    """Score multiple customer records using the same validation contract."""
+async def batch_predict_endpoint(requests: list[BankPredictionRequest]) -> list[PredictionResponse]:
+    """Score multiple customers using the same validation and feature rules."""
     try:
         return batch_predict(requests)
     except RuntimeError as exc:

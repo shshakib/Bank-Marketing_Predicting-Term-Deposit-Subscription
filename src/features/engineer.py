@@ -5,9 +5,12 @@ the same transformations here avoids one-hot encoding drift between the model
 artifact and FastAPI requests.
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 from pathlib import Path
+from typing import Any, Iterable
 
 import joblib
 import pandas as pd
@@ -23,14 +26,19 @@ logging.basicConfig(
 logger = logging.getLogger("bank-feature-engineering")
 
 TARGET_COLUMN = "deposit"
-BINARY_FEATURES = ["default", "housing", "loan"]
-CATEGORICAL_FEATURES = ["job", "marital", "education", "contact", "month", "poutcome"]
-NUMERICAL_FEATURES = ["age", "balance", "day", "campaign", "previous"]
-OPTIONAL_NUMERICAL_FEATURES = ["duration"]
+BINARY_FEATURES: list[str] = ["default", "housing", "loan"]
+CATEGORICAL_FEATURES: list[str] = ["job", "marital", "education", "contact", "month", "poutcome"]
+NUMERICAL_FEATURES: list[str] = ["age", "balance", "day", "campaign", "previous"]
+OPTIONAL_NUMERICAL_FEATURES: list[str] = ["duration"]
 
 
-def create_features(df):
-    """Apply label encoding for binary fields while preserving raw numeric fields."""
+def create_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply deterministic feature rules before one-hot encoding.
+
+    Binary banking indicators become numeric ``0/1`` fields. The remaining
+    categorical variables stay as strings because the persisted preprocessor is
+    responsible for creating a stable dummy-variable schema.
+    """
     logger.info("Creating bank marketing features")
 
     df_featured = df.copy()
@@ -48,7 +56,7 @@ def create_features(df):
     return df_featured
 
 
-def _make_one_hot_encoder():
+def _make_one_hot_encoder() -> OneHotEncoder:
     """Create a dense one-hot encoder across supported scikit-learn versions."""
     try:
         return OneHotEncoder(handle_unknown="ignore", drop="first", sparse_output=False)
@@ -56,7 +64,7 @@ def _make_one_hot_encoder():
         return OneHotEncoder(handle_unknown="ignore", drop="first", sparse=False)
 
 
-def get_feature_groups(columns):
+def get_feature_groups(columns: Iterable[str]) -> tuple[list[str], list[str]]:
     """Split available columns into numeric and categorical preprocessing groups."""
     available = set(columns)
     numerical = [column for column in NUMERICAL_FEATURES + OPTIONAL_NUMERICAL_FEATURES if column in available]
@@ -65,8 +73,13 @@ def get_feature_groups(columns):
     return numerical, categorical
 
 
-def create_preprocessor(columns):
-    """Create the full-rank dummy encoding pipeline used by training and inference."""
+def create_preprocessor(columns: Iterable[str]) -> ColumnTransformer:
+    """Create the preprocessing pipeline used by training and inference.
+
+    The first level is dropped for each categorical variable to avoid duplicate
+    dummy columns. Unknown categories are ignored at inference time so the API
+    can still score valid requests if a rare category appears after training.
+    """
     logger.info("Creating bank marketing preprocessor")
 
     numerical_features, categorical_features = get_feature_groups(columns)
@@ -89,7 +102,7 @@ def create_preprocessor(columns):
     )
 
 
-def to_dense_frame(transformed, preprocessor):
+def to_dense_frame(transformed: Any, preprocessor: ColumnTransformer) -> pd.DataFrame:
     """Convert transformer output into a named DataFrame for model training."""
     if hasattr(transformed, "toarray"):
         transformed = transformed.toarray()
@@ -98,8 +111,12 @@ def to_dense_frame(transformed, preprocessor):
     return pd.DataFrame(transformed, columns=cleaned_names)
 
 
-def run_feature_engineering(input_file, output_file, preprocessor_file):
-    """Full feature engineering pipeline."""
+def run_feature_engineering(
+    input_file: str | Path,
+    output_file: str | Path,
+    preprocessor_file: str | Path,
+) -> pd.DataFrame:
+    """Create model-ready features and persist the fitted preprocessor."""
     logger.info(f"Loading data from {input_file}")
     df = pd.read_csv(input_file)
 
@@ -128,7 +145,8 @@ def run_feature_engineering(input_file, output_file, preprocessor_file):
     return df_transformed
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """Parse command-line options for the feature-engineering pipeline."""
     parser = argparse.ArgumentParser(description="Feature engineering for bank marketing data.")
     parser.add_argument("--input", required=True, help="Path to cleaned CSV file")
     parser.add_argument("--output", required=True, help="Path for output CSV file")

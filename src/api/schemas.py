@@ -5,12 +5,14 @@ planning. Post-call fields such as duration are intentionally not part of the
 serving contract because they would create leakage for pre-call scoring.
 """
 
-from typing import Dict, List
+from __future__ import annotations
+
+from typing import Any
 
 from pydantic import BaseModel, Field, validator
 
 
-CATEGORY_VALUES = {
+CATEGORY_VALUES: dict[str, set[str]] = {
     "job": {
         "admin.",
         "blue-collar",
@@ -37,7 +39,13 @@ CATEGORY_VALUES = {
 
 
 class BankPredictionRequest(BaseModel):
-    """Input payload for a single customer scoring request."""
+    """Input payload for scoring one customer.
+
+    The schema mirrors the production feature set used during training. It also
+    normalizes categorical strings so the API can accept values like
+    ``" Technician "`` while still rejecting categories that were not part of
+    the modeling pipeline.
+    """
 
     age: int = Field(..., ge=18, le=100, description="Customer age")
     job: str = Field(..., description="Customer job category")
@@ -55,7 +63,7 @@ class BankPredictionRequest(BaseModel):
     poutcome: str = Field(..., description="Outcome of previous marketing campaign")
 
     @validator(*CATEGORY_VALUES.keys(), pre=True)
-    def normalize_and_validate_categories(cls, value, field):
+    def normalize_and_validate_categories(cls, value: object, field: Any) -> str:
         """Normalize string categories and reject values unseen by the pipeline."""
         if not isinstance(value, str):
             raise TypeError(f"{field.name} must be provided as a string")
@@ -89,19 +97,23 @@ class BankPredictionRequest(BaseModel):
 
 
 class PredictionResponse(BaseModel):
-    """Prediction payload returned by the scoring service."""
+    """Prediction payload returned by the scoring service.
+
+    ``top_model_factors`` contains global model importances, not a personalized
+    SHAP-style explanation for a single customer.
+    """
 
     predicted_deposit: str
     subscription_probability: float
     prediction_label: int
-    probability_range: List[float] = Field(
+    probability_range: list[float] = Field(
         ...,
         description=(
             "Simple +/- 10 percentage point range around the model probability. "
             "This is a communication range, not a statistical confidence interval."
         ),
     )
-    top_model_factors: Dict[str, float] = Field(
+    top_model_factors: dict[str, float] = Field(
         ...,
         description="Global model feature importances from the trained estimator.",
     )

@@ -1,8 +1,11 @@
 """Model artifact loading and inference utilities for the FastAPI service."""
 
+from __future__ import annotations
+
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import joblib
 import pandas as pd
@@ -17,10 +20,20 @@ PREPROCESSOR_FILE = "preprocessor.pkl"
 MODEL_DIR_ENV = "MODEL_DIR"
 PROBABILITY_RANGE_MARGIN = 0.10
 
+MODEL_LOAD_ERROR: str | None = None
+model: Any | None = None
+preprocessor: Any | None = None
 
-def _artifact_roots():
-    """Return artifact directories in the order they should be searched."""
-    roots = []
+
+def _artifact_roots() -> list[Path]:
+    """Return artifact directories in priority order.
+
+    The API first honors ``MODEL_DIR`` so Docker, Kubernetes, and local
+    development can point serving to a known artifact directory. The fallback
+    search paths keep the same code runnable from the project root, from
+    ``src/api``, or inside the container image.
+    """
+    roots: list[Path] = []
 
     configured_dir = os.getenv(MODEL_DIR_ENV)
     if configured_dir:
@@ -44,7 +57,7 @@ def _artifact_roots():
     return unique_roots
 
 
-def _artifact_path(file_name):
+def _artifact_path(file_name: str) -> Path:
     """Find a model artifact locally, or return the first expected location."""
     candidates = [root / file_name for root in _artifact_roots()]
     for candidate in candidates:
@@ -55,14 +68,10 @@ def _artifact_path(file_name):
 
 MODEL_PATH = _artifact_path(MODEL_FILE)
 PREPROCESSOR_PATH = _artifact_path(PREPROCESSOR_FILE)
-MODEL_LOAD_ERROR = None
-
-model = None
-preprocessor = None
 
 
-def load_artifacts():
-    """Load model artifacts and store any failure for health diagnostics."""
+def load_artifacts() -> None:
+    """Load model/preprocessor artifacts and capture startup diagnostics."""
     global model, preprocessor, MODEL_LOAD_ERROR, MODEL_PATH, PREPROCESSOR_PATH
 
     try:
@@ -80,21 +89,26 @@ def load_artifacts():
 load_artifacts()
 
 
-def artifacts_loaded():
+def artifacts_loaded() -> bool:
     """Return whether both required artifacts are available in memory."""
     return model is not None and preprocessor is not None
 
 
-def _artifact_metadata(path):
+def _artifact_metadata(path: Path) -> dict[str, object]:
     """Expose basic file metadata so health checks can reveal stale artifacts."""
-    metadata = {"path": str(path), "exists": path.exists()}
+    metadata: dict[str, object] = {"path": str(path), "exists": path.exists()}
     if path.exists():
         metadata["modified_at"] = datetime.fromtimestamp(path.stat().st_mtime).isoformat()
     return metadata
 
 
-def get_model_health():
-    """Return the model-serving readiness payload used by /health."""
+def get_model_health() -> dict[str, object]:
+    """Return the model-serving readiness payload used by ``/health``.
+
+    The health response intentionally includes artifact paths and modification
+    times so stale Docker images or missing volume mounts are visible during
+    operations.
+    """
     if not artifacts_loaded():
         load_artifacts()
 
@@ -108,7 +122,7 @@ def get_model_health():
     }
 
 
-def _require_artifacts():
+def _require_artifacts() -> tuple[Any, Any]:
     """Return loaded artifacts or raise a service-level error."""
     if not artifacts_loaded():
         load_artifacts()
@@ -117,8 +131,13 @@ def _require_artifacts():
     return model, preprocessor
 
 
-def create_features(df):
-    """Mirror training-time feature rules before applying the preprocessor."""
+def create_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Mirror training-time feature rules before applying the preprocessor.
+
+    This step handles only lightweight, deterministic feature normalization.
+    The saved ``preprocessor.pkl`` remains responsible for imputation and
+    one-hot encoding so training and serving use the same category mapping.
+    """
     df_featured = df.copy()
 
     for column in df_featured.select_dtypes(include=["object", "string"]).columns:
@@ -134,8 +153,16 @@ def create_features(df):
     return df_featured
 
 
-def _top_global_model_factors(loaded_model, loaded_preprocessor, limit=8):
-    """Return global feature importances for tree-based models."""
+def _top_global_model_factors(
+    loaded_model: Any,
+    loaded_preprocessor: Any,
+    limit: int = 8,
+) -> dict[str, float]:
+    """Return global feature importances for tree-based models.
+
+    These values describe the fitted model overall. They should be presented as
+    model-level drivers, not as per-customer explanation scores.
+    """
     if not hasattr(loaded_model, "feature_importances_"):
         return {}
     try:
@@ -152,7 +179,7 @@ def _top_global_model_factors(loaded_model, loaded_preprocessor, limit=8):
     return {name: round(float(score), 4) for name, score in importances[:limit]}
 
 
-def _transform_for_model(featured_data, loaded_preprocessor):
+def _transform_for_model(featured_data: pd.DataFrame, loaded_preprocessor: Any) -> pd.DataFrame | Any:
     """Apply the saved preprocessing pipeline and preserve feature names."""
     processed_features = loaded_preprocessor.transform(featured_data)
     if hasattr(processed_features, "toarray"):
@@ -165,7 +192,7 @@ def _transform_for_model(featured_data, loaded_preprocessor):
         return processed_features
 
 
-def _probability_range(probability):
+def _probability_range(probability: float) -> list[float]:
     """Create a simple display range around the raw probability.
 
     This range is intentionally named differently from a confidence interval:
@@ -179,7 +206,7 @@ def _probability_range(probability):
 
 
 def predict_subscription(request: BankPredictionRequest) -> PredictionResponse:
-    """Predict whether a customer will subscribe to a term deposit."""
+    """Predict whether one customer will subscribe to a term deposit."""
     loaded_model, loaded_preprocessor = _require_artifacts()
 
     input_data = pd.DataFrame([request.dict()])

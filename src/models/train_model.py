@@ -1,9 +1,12 @@
 """Final model-training script for the production scoring artifact."""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import platform
 from pathlib import Path
+from typing import Any
 
 import joblib
 import numpy as np
@@ -34,7 +37,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """Parse command-line options for reproducible training runs."""
     parser = argparse.ArgumentParser(description="Train the bank deposit subscription model.")
     parser.add_argument("--config", type=str, required=True, help="Path to model_config.yaml")
@@ -44,8 +47,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_model_instance(name, params):
-    """Instantiate the configured estimator from the YAML model config."""
+def get_model_instance(name: str, params: dict[str, Any]) -> Any:
+    """Instantiate the estimator selected in the YAML model config."""
     model_map = {
         "LogisticRegression": LogisticRegression,
         "RandomForest": RandomForestClassifier,
@@ -56,8 +59,13 @@ def get_model_instance(name, params):
     return model_map[name](**params)
 
 
-def evaluate_model(model, X_test, y_test):
-    """Calculate classification metrics used by notebooks and monitoring."""
+def evaluate_model(model: Any, X_test: pd.DataFrame, y_test: pd.Series) -> dict[str, float]:
+    """Calculate classification metrics used by notebooks and monitoring.
+
+    Sensitivity is reported for the negative class and specificity for the
+    positive subscription class to stay consistent with the project comparison
+    artifacts.
+    """
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else y_pred
     tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
@@ -78,8 +86,14 @@ def evaluate_model(model, X_test, y_test):
     }
 
 
-def log_to_mlflow(model, model_cfg, metrics, args, save_path):
-    """Optionally log the trained model and metadata to MLflow."""
+def log_to_mlflow(
+    model: Any,
+    model_cfg: dict[str, Any],
+    metrics: dict[str, float],
+    args: argparse.Namespace,
+    save_path: Path,
+) -> None:
+    """Optionally log the trained model, metrics, and metadata to MLflow."""
     if not args.mlflow_tracking_uri:
         logger.info("No MLflow tracking URI provided; skipping MLflow logging")
         return
@@ -104,8 +118,8 @@ def log_to_mlflow(model, model_cfg, metrics, args, save_path):
 
         try:
             client.create_registered_model(model_name)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Registered model already exists or cannot be created: {exc}")
 
         try:
             model_version = client.create_model_version(
@@ -135,8 +149,13 @@ def log_to_mlflow(model, model_cfg, metrics, args, save_path):
             logger.warning(f"Could not update model registry metadata: {exc}")
 
 
-def main(args):
-    """Train, evaluate, save, and optionally register the production model."""
+def main(args: argparse.Namespace) -> None:
+    """Train, evaluate, save, and optionally register the production model.
+
+    This script does not automatically choose the best model. It trains the
+    model family and parameters declared in ``configs/model_config.yaml`` after
+    the model-comparison workflow has been reviewed.
+    """
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
     model_cfg = config["model"]
@@ -154,6 +173,8 @@ def main(args):
         stratify=y,
     )
 
+    # The production artifact is intentionally controlled by config so model
+    # promotion is explicit and reproducible.
     model = get_model_instance(model_cfg["best_model"], model_cfg["parameters"])
     logger.info(f"Training model: {model_cfg['best_model']}")
     model.fit(X_train, y_train)

@@ -1,7 +1,10 @@
 """Generate reusable EDA figures for the bank marketing project."""
 
+from __future__ import annotations
+
 import argparse
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 
@@ -12,7 +15,7 @@ import pandas as pd
 import seaborn as sns
 
 
-def save_deposit_distribution(df, output_dir):
+def save_deposit_distribution(df: pd.DataFrame, output_dir: Path) -> None:
     """Save the target class distribution plot."""
     fig, ax = plt.subplots(figsize=(6, 4))
     sns.countplot(data=df, x="deposit", hue="deposit", palette="Set2", ax=ax)
@@ -27,10 +30,10 @@ def save_deposit_distribution(df, output_dir):
     plt.close(fig)
 
 
-def save_numerical_histograms(df, output_dir):
+def save_numerical_histograms(df: pd.DataFrame, output_dir: Path) -> None:
     """Save histograms for all numeric fields to inspect skew and spread."""
     numerical = df.select_dtypes(include="number")
-    axes = numerical.hist(figsize=(12, 9), bins=30, color="steelblue")
+    axes: Any = numerical.hist(figsize=(12, 9), bins=30, color="steelblue")
     for ax in axes.flatten():
         ax.set_title(f"Histogram of {ax.get_title()}")
     plt.tight_layout()
@@ -38,7 +41,7 @@ def save_numerical_histograms(df, output_dir):
     plt.close()
 
 
-def save_correlation_heatmap(df, output_dir):
+def save_correlation_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
     """Save a numeric correlation heatmap for quick relationship checks."""
     numerical = df.select_dtypes(include="number")
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -49,7 +52,7 @@ def save_correlation_heatmap(df, output_dir):
     plt.close(fig)
 
 
-def save_boxplots(df, output_dir):
+def save_boxplots(df: pd.DataFrame, output_dir: Path) -> None:
     """Save numeric boxplots to make outliers and long tails visible."""
     numerical = df.select_dtypes(include="number")
     fig, axes = plt.subplots(3, 3, figsize=(12, 9))
@@ -65,8 +68,12 @@ def save_boxplots(df, output_dir):
     plt.close(fig)
 
 
-def save_categorical_proportions(df, output_dir):
-    """Save subscription proportions for each categorical predictor."""
+def save_categorical_proportions(df: pd.DataFrame, output_dir: Path) -> None:
+    """Save subscription proportions for each categorical predictor.
+
+    Proportions are more useful than raw counts here because category sizes vary
+    widely across jobs, education levels, contact types, and prior outcomes.
+    """
     categorical = [column for column in df.select_dtypes(include="object").columns if column != "deposit"]
     fig, axes = plt.subplots(3, 3, figsize=(16, 12))
     axes = axes.flatten()
@@ -89,7 +96,7 @@ def save_categorical_proportions(df, output_dir):
     plt.close(fig)
 
 
-def save_age_by_subscription(df, output_dir):
+def save_age_by_subscription(df: pd.DataFrame, output_dir: Path) -> None:
     """Save an age distribution split by subscription outcome."""
     fig, ax = plt.subplots(figsize=(8, 5))
     sns.histplot(data=df, x="age", hue="deposit", binwidth=5, multiple="dodge", ax=ax)
@@ -101,8 +108,12 @@ def save_age_by_subscription(df, output_dir):
     plt.close(fig)
 
 
-def save_campaign_subscription(df, output_dir):
-    """Save subscription proportions by campaign contact count."""
+def save_campaign_subscription(df: pd.DataFrame, output_dir: Path) -> None:
+    """Save subscription proportions by campaign contact count.
+
+    This view helps identify whether repeated campaign contacts are associated
+    with lower subscription rates.
+    """
     campaign_df = (
         df.groupby("campaign")["deposit"]
         .value_counts(normalize=True)
@@ -119,12 +130,14 @@ def save_campaign_subscription(df, output_dir):
     plt.close(fig)
 
 
-def create_all_plots(input_file, output_dir):
+def create_all_plots(input_file: str | Path, output_dir: str | Path) -> None:
     """Read the raw dataset and write all EDA figures to disk."""
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(input_file)
+    # Normalize labels before plotting so duplicated labels caused by casing or
+    # whitespace do not split the same category into multiple bars.
     for column in df.select_dtypes(include=["object", "string"]).columns:
         df[column] = df[column].astype(str).str.strip().str.lower()
 
@@ -137,7 +150,8 @@ def create_all_plots(input_file, output_dir):
     save_campaign_subscription(df, output_path)
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """Parse command-line options for EDA figure generation."""
     parser = argparse.ArgumentParser(description="Create EDA plots for the bank marketing analysis.")
     parser.add_argument("--input", required=True, help="Path to raw bank.csv")
     parser.add_argument("--output-dir", required=True, help="Directory for PNG plots")

@@ -1,9 +1,12 @@
 """Compare candidate classifiers across production-safe and diagnostic scenarios."""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -32,7 +35,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def evaluate_predictions(y_true, y_pred):
+def evaluate_predictions(y_true: pd.Series, y_pred: np.ndarray) -> dict[str, float]:
     """Return the compact metric set used for candidate model comparison."""
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
     sensitivity_no = tn / (tn + fp) if (tn + fp) else 0.0
@@ -45,7 +48,10 @@ def evaluate_predictions(y_true, y_pred):
     }
 
 
-def encode_train_test(train_df, test_df):
+def encode_train_test(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
     """Fit preprocessing on training data and transform train/test splits."""
     X_train = create_features(train_df.drop(columns=["deposit"]))
     X_test = create_features(test_df.drop(columns=["deposit"]))
@@ -58,7 +64,10 @@ def encode_train_test(train_df, test_df):
     return X_train_encoded, X_test_encoded, y_train, y_test
 
 
-def split_scenario(df, random_state):
+def split_scenario(
+    df: pd.DataFrame,
+    random_state: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Create a stratified holdout split for one modeling scenario."""
     return train_test_split(
         df,
@@ -68,7 +77,13 @@ def split_scenario(df, random_state):
     )
 
 
-def run_rf(train_df, test_df, cv_folds, random_state, rf_trees):
+def run_rf(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    cv_folds: int,
+    random_state: int,
+    rf_trees: int,
+) -> dict[str, Any]:
     """Tune and evaluate the Random Forest candidate model."""
     X_train, X_test, y_train, y_test = encode_train_test(train_df, test_df)
     grid = GridSearchCV(
@@ -86,7 +101,13 @@ def run_rf(train_df, test_df, cv_folds, random_state, rf_trees):
     return metrics
 
 
-def run_gbm(train_df, test_df, cv_folds, random_state, full_grid):
+def run_gbm(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    cv_folds: int,
+    random_state: int,
+    full_grid: bool,
+) -> dict[str, Any]:
     """Tune and evaluate the Gradient Boosting candidate model."""
     X_train, X_test, y_train, y_test = encode_train_test(train_df, test_df)
     if full_grid:
@@ -118,7 +139,7 @@ def run_gbm(train_df, test_df, cv_folds, random_state, full_grid):
     return metrics
 
 
-def run_single_baseline(model, train_df, test_df):
+def run_single_baseline(model: Any, train_df: pd.DataFrame, test_df: pd.DataFrame) -> dict[str, float]:
     """Fit and evaluate a baseline model without hyperparameter search."""
     X_train, X_test, y_train, y_test = encode_train_test(train_df, test_df)
     model.fit(X_train, y_train)
@@ -126,7 +147,11 @@ def run_single_baseline(model, train_df, test_df):
     return evaluate_predictions(y_test, y_pred)
 
 
-def run_mccv_baselines(df, iterations, random_state):
+def run_mccv_baselines(
+    df: pd.DataFrame,
+    iterations: int,
+    random_state: int,
+) -> list[dict[str, Any]]:
     """Summarize Logistic Regression and LDA stability with Monte Carlo CV."""
     rng = np.random.default_rng(random_state)
     n_rows = len(df)
@@ -167,13 +192,13 @@ def run_mccv_baselines(df, iterations, random_state):
     return summary.to_dict(orient="records")
 
 
-def prepare_scenario(raw_df, keep_duration):
+def prepare_scenario(raw_df: pd.DataFrame, keep_duration: bool) -> pd.DataFrame:
     """Build the cleaned DataFrame for one comparison scenario."""
     cleaned = clean_data(raw_df, keep_duration=keep_duration)
     return cleaned.reset_index(drop=True)
 
 
-def log_results_to_mlflow(results, tracking_uri):
+def log_results_to_mlflow(results: list[dict[str, Any]], tracking_uri: str | None) -> None:
     """Optionally log model-comparison metrics to an MLflow experiment."""
     if not tracking_uri:
         return
@@ -193,8 +218,13 @@ def log_results_to_mlflow(results, tracking_uri):
             })
 
 
-def run_comparison(args):
-    """Run all candidate models and persist YAML/CSV comparison artifacts."""
+def run_comparison(args: argparse.Namespace) -> None:
+    """Run all candidate models and persist YAML/CSV comparison artifacts.
+
+    The comparison intentionally evaluates both the production-safe feature set
+    and the with-duration diagnostic feature set. The latter is useful for
+    understanding leakage impact, but it should not be promoted to the API.
+    """
     raw_df = pd.read_csv(args.raw_data)
     all_results = []
 
@@ -217,6 +247,8 @@ def run_comparison(args):
             "LDA": run_single_baseline(LinearDiscriminantAnalysis(), train_df, test_df),
         }
 
+        # Monte Carlo CV is reserved for the linear baselines to estimate
+        # stability without making the ensemble grid search prohibitively slow.
         mccv_summary = run_mccv_baselines(scenario_df, args.mccv_iterations, args.random_state)
 
         for model_name, metrics in model_results.items():
@@ -260,7 +292,8 @@ def run_comparison(args):
     logger.info(f"Saved comparison table to {csv_path}")
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """Parse command-line options for the model-comparison workflow."""
     parser = argparse.ArgumentParser(description="Run the bank marketing model comparison workflow.")
     parser.add_argument("--raw-data", required=True, help="Path to raw bank.csv")
     parser.add_argument("--output", required=True, help="Path for comparison YAML")

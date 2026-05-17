@@ -5,6 +5,8 @@ the target, and writes cleaned datasets for production modeling and diagnostic
 comparison.
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 from pathlib import Path
@@ -18,9 +20,9 @@ logging.basicConfig(
 logger = logging.getLogger("bank-data-processor")
 
 TARGET_COLUMN = "deposit"
-BANK_MARKETING_PRODUCTION_EXCLUSIONS = ["duration", "pdays"]
-BINARY_COLUMNS = ["default", "housing", "loan"]
-REQUIRED_COLUMNS = [
+BANK_MARKETING_PRODUCTION_EXCLUSIONS: list[str] = ["duration", "pdays"]
+BINARY_COLUMNS: list[str] = ["default", "housing", "loan"]
+REQUIRED_COLUMNS: list[str] = [
     "age",
     "job",
     "marital",
@@ -41,21 +43,26 @@ REQUIRED_COLUMNS = [
 ]
 
 
-def load_data(file_path):
-    """Load data from a CSV file."""
+def load_data(file_path: str | Path) -> pd.DataFrame:
+    """Load the raw bank marketing CSV into a DataFrame."""
     logger.info(f"Loading data from {file_path}")
     return pd.read_csv(file_path)
 
 
-def _validate_schema(df):
+def _validate_schema(df: pd.DataFrame) -> None:
     """Fail early if the raw data does not match the expected source schema."""
     missing = sorted(set(REQUIRED_COLUMNS) - set(df.columns))
     if missing:
         raise ValueError(f"Input data is missing required columns: {missing}")
 
 
-def clean_data(df, keep_duration=False):
-    """Clean the bank marketing dataset for either serving-safe or diagnostic use."""
+def clean_data(df: pd.DataFrame, keep_duration: bool = False) -> pd.DataFrame:
+    """Clean the bank marketing dataset for serving-safe or diagnostic use.
+
+    The production path drops ``duration`` because it is known only after a
+    customer call. Keeping duration is useful only for diagnostic comparison to
+    quantify how much post-call information would inflate model performance.
+    """
     logger.info("Cleaning bank marketing dataset")
     _validate_schema(df)
 
@@ -100,9 +107,9 @@ def clean_data(df, keep_duration=False):
 
     # Duration is excluded for production scoring because it is known only
     # after a call ends. It can be retained for the diagnostic comparison.
-    columns_to_drop = ["pdays"]
-    if not keep_duration:
-        columns_to_drop.append("duration")
+    columns_to_drop = BANK_MARKETING_PRODUCTION_EXCLUSIONS.copy()
+    if keep_duration and "duration" in columns_to_drop:
+        columns_to_drop.remove("duration")
 
     available_drop_columns = [column for column in columns_to_drop if column in df_cleaned.columns]
     if available_drop_columns:
@@ -115,7 +122,11 @@ def clean_data(df, keep_duration=False):
     return df_cleaned
 
 
-def process_data(input_file, output_file, keep_duration=False):
+def process_data(
+    input_file: str | Path,
+    output_file: str | Path,
+    keep_duration: bool = False,
+) -> pd.DataFrame:
     """Load, clean, and persist one processed CSV artifact."""
     output_path = Path(output_file).parent
     output_path.mkdir(parents=True, exist_ok=True)
@@ -130,7 +141,8 @@ def process_data(input_file, output_file, keep_duration=False):
     return df_cleaned
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """Parse command-line options for the cleaning pipeline."""
     parser = argparse.ArgumentParser(description="Clean the bank marketing dataset.")
     parser.add_argument("--input", required=True, help="Path to raw bank.csv")
     parser.add_argument("--output", required=True, help="Path for cleaned output CSV")

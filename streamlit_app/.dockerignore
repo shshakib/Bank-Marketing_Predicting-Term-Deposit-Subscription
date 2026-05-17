@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.streamlit
+.pytest_cache
+.ipynb_checkpoints
+
+# The Streamlit image only needs app.py and requirements.txt.
+README.md

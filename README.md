@@ -15,25 +15,26 @@ Here is the production feature set:
 
 ## Project Structure
 
-```
+```text
 .
-├── configs/                 # Model configuration
-├── data/
-│   ├── raw/                 # bank.csv
-│   └── processed/           # cleaned and feature-engineered data
-├── deployment/              # MLflow and Kubernetes examples
-├── models/trained/          # Model, preprocessor, and metrics artifacts
-├── notebooks/               # Data science notebooks
-├── reports/figures/         # Python-generated versions of the R EDA plots
-├── src/
-│   ├── api/                 # FastAPI model service
-│   ├── data/                # Data cleaning pipeline
-│   ├── features/            # Feature engineering pipeline
-│   ├── models/              # Training and comparison pipelines
-│   └── visualization/       # EDA plot generation
-├── streamlit_app/           # Prediction UI
-├── Dockerfile               # FastAPI container
-└── docker-compose.yaml      # FastAPI + Streamlit
+|-- configs/                 # Model configuration
+|-- data/
+|   |-- raw/                 # bank.csv
+|   `-- processed/           # cleaned and feature-engineered data
+|-- deployment/
+|   `-- mlflow/              # MLflow tracking server setup
+|-- models/trained/          # Model, preprocessor, and metrics artifacts
+|-- notebooks/               # Data science notebooks
+|-- reports/figures/         # EDA figures
+|-- src/
+|   |-- api/                 # FastAPI model service
+|   |-- data/                # Data cleaning pipeline
+|   |-- features/            # Feature engineering pipeline
+|   |-- models/              # Training and comparison pipelines
+|   `-- visualization/       # EDA plot generation
+|-- streamlit_app/           # Prediction UI
+|-- Dockerfile               # FastAPI container
+`-- docker-compose.yaml      # FastAPI + Streamlit
 ```
 
 ## Setup
@@ -69,12 +70,16 @@ python src/visualization/create_plots.py `
   --output-dir reports/figures
 ```
 
+Create the production feature matrix and preprocessing artifact:
+
 ```bash
 python src/features/engineer.py `
   --input data/processed/cleaned_bank_data.csv `
   --output data/processed/featured_bank_data.csv `
   --preprocessor models/trained/preprocessor.pkl
 ```
+
+Train the selected production model:
 
 ```bash
 python src/models/train_model.py `
@@ -83,10 +88,28 @@ python src/models/train_model.py `
   --models-dir models
 ```
 
-To log to MLflow, start the tracking server and add `--mlflow-tracking-uri http://localhost:5555` to the training command.
+## MLflow Tracking
+
+MLflow is implemented as the experiment-tracking layer for this project. The local tracking server is defined in `deployment/mlflow/docker-compose.yaml`, and it stores the backend database and artifacts in a persistent Docker volume.
+
+Start MLflow:
 
 ```bash
 docker compose -f deployment/mlflow/docker-compose.yaml up -d
+```
+
+Both the model-comparison and final-training scripts support MLflow logging through `--mlflow-tracking-uri http://localhost:5555`.
+
+The comparison workflow logs candidate-model parameters and metrics to the `bank_deposit_model_comparison` experiment. The final training workflow logs selected-model parameters, evaluation metrics, and the sklearn model artifact to the `bank_deposit_model` experiment, then attempts to register the model version in the MLflow Model Registry.
+
+Example final-training command with MLflow:
+
+```bash
+python src/models/train_model.py `
+  --config configs/model_config.yaml `
+  --data data/processed/featured_bank_data.csv `
+  --models-dir models `
+  --mlflow-tracking-uri http://localhost:5555
 ```
 
 ## Model Comparison
@@ -100,7 +123,7 @@ python src/models/compare_models.py `
   --mlflow-tracking-uri http://localhost:5555
 ```
 
-By default this uses 100 Monte Carlo CV iterations for Logistic Regression and LDA. The GBM command uses the best GBM configuration unless `--full-gbm-grid` is provided.
+By default this uses 100 Monte Carlo CV iterations for Logistic Regression and LDA. The GBM command uses the selected GBM configuration unless `--full-gbm-grid` is provided.
 
 For the with-duration feature matrix:
 
@@ -158,6 +181,7 @@ Open:
 
 - FastAPI docs: http://localhost:8000/docs
 - Streamlit UI: http://localhost:8501
+- MLflow UI: http://localhost:5555
 
 ## GitHub Actions
 

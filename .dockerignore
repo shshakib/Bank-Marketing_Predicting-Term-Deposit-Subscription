@@ -1,0 +1,23 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ipynb_checkpoints
+
+# Not required to build the FastAPI image.
+data
+deployment
+logs
+notebooks
+reports
+scripts
+streamlit_app
+
+# Keep trained pickle artifacts available for the Dockerfile COPY step.
+models/trained/*.csv
+models/trained/*.yaml
+models/trained/*.md

@@ -28,10 +28,10 @@ preprocessor: Any | None = None
 def _artifact_roots() -> list[Path]:
     """Return artifact directories in priority order.
 
-    The API first honors ``MODEL_DIR`` so Docker, Kubernetes, and local
-    development can point serving to a known artifact directory. The fallback
-    search paths keep the same code runnable from the project root, from
-    ``src/api``, or inside the container image.
+    The API first honors ``MODEL_DIR`` so Docker Compose, standalone Docker,
+    and local development can point serving to a known artifact directory. The
+    fallback search paths keep the same code runnable from the project root,
+    from ``src/api``, or inside the container image.
     """
     roots: list[Path] = []
 

@@ -1,0 +1,29 @@
+services:
+  # FastAPI serves the trained sklearn model and preprocessing artifact.
+  fastapi:
+    image: bank-marketing-fastapi:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 8000:8000
+    environment:
+      MODEL_DIR: /app/models/trained
+    volumes:
+      # Mount local artifacts read-only so retraining updates the served model
+      # without rebuilding the image during development.
+      - ./models/trained:/app/models/trained:ro
+
+  # Streamlit is a lightweight UI client that sends payloads to FastAPI.
+  streamlit:
+    image: bank-marketing-streamlit:dev
+    build:
+      context: ./streamlit_app
+      dockerfile: Dockerfile
+    ports:
+      - 8501:8501
+    environment:
+      API_URL: http://fastapi:8000
+    depends_on:
+      fastapi:
+        condition: service_healthy

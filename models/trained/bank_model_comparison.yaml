@@ -2,12 +2,12 @@ results:
 - scenario: No Duration
   model: Random Forest
   metrics:
-    accuracy: 0.7133900582176445
-    sensitivity: 0.7778723404255319
-    specificity: 0.6417769376181475
-    balanced_accuracy: 0.7098246390218397
-    best_mtry: 3
-    n_trees: 500
+    accuracy: 0.716524854455889
+    sensitivity: 0.7829787234042553
+    specificity: 0.6427221172022685
+    balanced_accuracy: 0.712850420303262
+    best_mtry: 6
+    n_trees: 1000
   params:
     keep_duration: false
     cv_folds: 5
@@ -52,22 +52,22 @@ results:
 - scenario: No Duration
   model: Logistic/LDA MCCV
   metrics:
-    mccv_iterations: 20
+    mccv_iterations: 100
   mccv_summary:
   - model: LDA
-    train_iterations: 20
-    accuracy_mean: 0.7019265232974911
-    accuracy_std: 0.012927291455522799
-    sensitivity_mean: 0.8157871933591107
-    specificity_mean: 0.5757923900871789
-    balanced_accuracy_mean: 0.6957897917231447
+    train_iterations: 100
+    accuracy_mean: 0.7035483870967743
+    accuracy_std: 0.013162967249555263
+    sensitivity_mean: 0.8194614276475185
+    specificity_mean: 0.5751319863989969
+    balanced_accuracy_mean: 0.6972967070232577
   - model: Logistic Regression
-    train_iterations: 20
-    accuracy_mean: 0.698252688172043
-    accuracy_std: 0.014032670038858278
-    sensitivity_mean: 0.7900117461239937
-    specificity_mean: 0.5965712681687724
-    balanced_accuracy_mean: 0.6932915071463831
+    train_iterations: 100
+    accuracy_mean: 0.7017562724014337
+    accuracy_std: 0.012635451680512876
+    sensitivity_mean: 0.7948238011614867
+    specificity_mean: 0.5987724518278623
+    balanced_accuracy_mean: 0.6967981264946745
   params:
     keep_duration: false
     random_state: 85
@@ -75,11 +75,11 @@ results:
   model: Random Forest
   metrics:
     accuracy: 0.8441558441558441
-    sensitivity: 0.8127659574468085
-    specificity: 0.8790170132325141
-    balanced_accuracy: 0.8458914853396613
+    sensitivity: 0.8093617021276596
+    specificity: 0.8827977315689981
+    balanced_accuracy: 0.8460797168483288
     best_mtry: 6
-    n_trees: 500
+    n_trees: 1000
   params:
     keep_duration: true
     cv_folds: 5
@@ -124,22 +124,22 @@ results:
 - scenario: With Duration
   model: Logistic/LDA MCCV
   metrics:
-    mccv_iterations: 20
+    mccv_iterations: 100
   mccv_summary:
   - model: LDA
-    train_iterations: 20
-    accuracy_mean: 0.8148297491039427
-    accuracy_std: 0.011196565916374216
-    sensitivity_mean: 0.8714636698507368
-    specificity_mean: 0.7519617853685351
-    balanced_accuracy_mean: 0.811712727609636
+    train_iterations: 100
+    accuracy_mean: 0.8154480286738351
+    accuracy_std: 0.011662258609304747
+    sensitivity_mean: 0.8739757615769678
+    specificity_mean: 0.7505348622562343
+    balanced_accuracy_mean: 0.8122553119166009
   - model: Logistic Regression
-    train_iterations: 20
-    accuracy_mean: 0.8209229390681003
-    accuracy_std: 0.012549097144108266
-    sensitivity_mean: 0.8458313044723992
-    specificity_mean: 0.7930608347904441
-    balanced_accuracy_mean: 0.8194460696314216
+    train_iterations: 100
+    accuracy_mean: 0.8231182795698925
+    accuracy_std: 0.011999587471087605
+    sensitivity_mean: 0.8482905594868523
+    specificity_mean: 0.7952134046829821
+    balanced_accuracy_mean: 0.8217519820849171
   params:
     keep_duration: true
     random_state: 85

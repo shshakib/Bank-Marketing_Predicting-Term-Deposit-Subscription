@@ -13,6 +13,30 @@ Here is the production feature set:
 - Preprocessing: `default`, `housing`, and `loan` are label-encoded; other categorical fields use full-rank one-hot encoding
 - Comparison: Random Forest, GBM, Logistic Regression, and LDA are evaluated both with and without `duration`
 
+## Project Screenshots
+
+The screenshots below highlight the main application interface, API layer, experiment tracking, automation workflow, and container publishing. Add the image files under `docs/screenshots/` with the same filenames used below.
+
+### Streamlit Prediction Interface
+
+![Streamlit prediction interface](docs/screenshots/streamlit-app.png)
+
+### FastAPI API Documentation
+
+![FastAPI Swagger UI](docs/screenshots/fastapi-swagger.png)
+
+### MLflow Experiment Tracking
+
+![MLflow experiment tracking](docs/screenshots/mlflow-runs.png)
+
+### GitHub Actions Pipeline
+
+![GitHub Actions pipeline](docs/screenshots/github-actions-success.png)
+
+### Docker Hub Images
+
+![Docker Hub images](docs/screenshots/dockerhub-images.png)
+
 ## Project Structure
 
 ```text
@@ -21,6 +45,7 @@ Here is the production feature set:
 |-- data/
 |   |-- raw/                 # bank.csv
 |   `-- processed/           # cleaned and feature-engineered data
+|-- docs/screenshots/        # Portfolio screenshots used in README
 |-- deployment/
 |   `-- mlflow/              # MLflow tracking server setup
 |-- models/trained/          # Model, preprocessor, and metrics artifacts

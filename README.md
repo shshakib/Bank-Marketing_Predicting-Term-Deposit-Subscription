@@ -15,7 +15,7 @@ Here is the production feature set:
 
 ## Project Screenshots
 
-The screenshots below highlight the main application interface, API layer, experiment tracking, automation workflow, and container publishing. Add the image files under `docs/screenshots/` with the same filenames used below.
+The screenshots below highlight the main application interface, API layer, experiment tracking, automation workflow, and container publishing. 
 
 ### Streamlit Prediction Interface
 

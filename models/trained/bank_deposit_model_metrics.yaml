@@ -1,10 +1,12 @@
 model: bank_deposit_model
 algorithm: GradientBoosting
 target_variable: deposit
+positive_class: 1
+preprocessing_fit: training_split_only
 metrics:
   accuracy: 0.7227944469323779
-  sensitivity: 0.7957446808510639
-  specificity: 0.6417769376181475
+  sensitivity: 0.6417769376181475
+  specificity: 0.7957446808510639
   balanced_accuracy: 0.7187608092346056
   precision_yes: 0.7388465723612623
   recall_yes: 0.6417769376181475

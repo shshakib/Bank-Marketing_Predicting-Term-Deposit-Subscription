@@ -16,6 +16,7 @@ from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.pipeline import Pipeline
 
 try:
     import mlflow
@@ -38,13 +39,13 @@ logger = logging.getLogger(__name__)
 def evaluate_predictions(y_true: pd.Series, y_pred: np.ndarray) -> dict[str, float]:
     """Return the compact metric set used for candidate model comparison."""
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
-    sensitivity_no = tn / (tn + fp) if (tn + fp) else 0.0
-    specificity_yes = tp / (tp + fn) if (tp + fn) else 0.0
+    specificity = tn / (tn + fp) if (tn + fp) else 0.0
+    sensitivity = tp / (tp + fn) if (tp + fn) else 0.0
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
-        "sensitivity": float(sensitivity_no),
-        "specificity": float(specificity_yes),
-        "balanced_accuracy": float((sensitivity_no + specificity_yes) / 2),
+        "sensitivity": float(sensitivity),
+        "specificity": float(specificity),
+        "balanced_accuracy": float((sensitivity + specificity) / 2),
     }
 
 
@@ -85,10 +86,15 @@ def run_rf(
     rf_trees: int,
 ) -> dict[str, Any]:
     """Tune and evaluate the Random Forest candidate model."""
-    X_train, X_test, y_train, y_test = encode_train_test(train_df, test_df)
+    X_train = create_features(train_df.drop(columns="deposit"))
+    X_test = create_features(test_df.drop(columns="deposit"))
+    y_train, y_test = train_df.deposit, test_df.deposit
     grid = GridSearchCV(
-        estimator=RandomForestClassifier(n_estimators=rf_trees, random_state=random_state, n_jobs=-1),
-        param_grid={"max_features": [3, 4, 5, 6]},
+        estimator=Pipeline([
+            ("preprocessor", create_preprocessor(X_train.columns)),
+            ("model", RandomForestClassifier(n_estimators=rf_trees, random_state=random_state, n_jobs=1)),
+        ]),
+        param_grid={"model__max_features": [3, 4, 5, 6]},
         scoring="accuracy",
         cv=cv_folds,
         n_jobs=-1,
@@ -96,7 +102,7 @@ def run_rf(
     grid.fit(X_train, y_train)
     y_pred = grid.predict(X_test)
     metrics = evaluate_predictions(y_test, y_pred)
-    metrics["best_mtry"] = int(grid.best_params_["max_features"])
+    metrics["best_mtry"] = int(grid.best_params_["model__max_features"])
     metrics["n_trees"] = int(rf_trees)
     return metrics
 
@@ -109,7 +115,9 @@ def run_gbm(
     full_grid: bool,
 ) -> dict[str, Any]:
     """Tune and evaluate the Gradient Boosting candidate model."""
-    X_train, X_test, y_train, y_test = encode_train_test(train_df, test_df)
+    X_train = create_features(train_df.drop(columns="deposit"))
+    X_test = create_features(test_df.drop(columns="deposit"))
+    y_train, y_test = train_df.deposit, test_df.deposit
     if full_grid:
         param_grid = {
             "n_estimators": [300, 500, 1000],
@@ -126,8 +134,11 @@ def run_gbm(
         }
 
     grid = GridSearchCV(
-        estimator=GradientBoostingClassifier(random_state=random_state),
-        param_grid=param_grid,
+        estimator=Pipeline([
+            ("preprocessor", create_preprocessor(X_train.columns)),
+            ("model", GradientBoostingClassifier(random_state=random_state)),
+        ]),
+        param_grid={f"model__{key}": values for key, values in param_grid.items()},
         scoring="accuracy",
         cv=cv_folds,
         n_jobs=-1,
@@ -135,7 +146,7 @@ def run_gbm(
     grid.fit(X_train, y_train)
     y_pred = grid.predict(X_test)
     metrics = evaluate_predictions(y_test, y_pred)
-    metrics.update({f"best_{key}": value for key, value in grid.best_params_.items()})
+    metrics.update({f"best_{key.removeprefix('model__')}": value for key, value in grid.best_params_.items()})
     return metrics
 
 

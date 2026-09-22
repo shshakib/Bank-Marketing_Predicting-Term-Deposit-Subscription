@@ -10,8 +10,7 @@ services:
     environment:
       MODEL_DIR: /app/models/trained
     volumes:
-      # Mount local artifacts read-only so retraining updates the served model
-      # without rebuilding the image during development.
+      # Restart fastapi after retraining to load the newly mounted artifacts.
       - ./models/trained:/app/models/trained:ro
 
   # Streamlit is a lightweight UI client that sends payloads to FastAPI.

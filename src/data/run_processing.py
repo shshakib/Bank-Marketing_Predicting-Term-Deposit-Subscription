@@ -64,14 +64,14 @@ def clean_data(df: pd.DataFrame, keep_duration: bool = False) -> pd.DataFrame:
     quantify how much post-call information would inflate model performance.
     """
     logger.info("Cleaning bank marketing dataset")
-    _validate_schema(df)
-
     df_cleaned = df.copy()
     df_cleaned.columns = [column.strip().lower().replace(" ", "_") for column in df_cleaned.columns]
+    _validate_schema(df_cleaned)
 
     string_columns = df_cleaned.select_dtypes(include=["object", "string"]).columns
     for column in string_columns:
-        df_cleaned[column] = df_cleaned[column].astype(str).str.strip().str.lower()
+        # Preserve missing values for the preprocessor fitted on training rows.
+        df_cleaned[column] = df_cleaned[column].str.strip().str.lower()
 
     for column in BINARY_COLUMNS:
         invalid = sorted(set(df_cleaned[column].dropna().unique()) - {"yes", "no", "unknown"})
@@ -79,9 +79,9 @@ def clean_data(df: pd.DataFrame, keep_duration: bool = False) -> pd.DataFrame:
             raise ValueError(f"Unexpected values in {column}: {invalid}")
 
     invalid_target_values = set(df_cleaned[TARGET_COLUMN].dropna().unique()) - {"yes", "no"}
-    if invalid_target_values:
+    if invalid_target_values or df_cleaned[TARGET_COLUMN].isna().any():
         raise ValueError(
-            f"Target column 'deposit' must contain only 'yes' and 'no': {invalid_target_values}"
+            f"Target column 'deposit' must contain only non-missing 'yes' and 'no': {invalid_target_values}"
         )
 
     for column in df_cleaned.columns:
@@ -89,14 +89,8 @@ def clean_data(df: pd.DataFrame, keep_duration: bool = False) -> pd.DataFrame:
         if missing_count > 0:
             logger.info(f"Found {missing_count} missing values in {column}")
 
-            if pd.api.types.is_numeric_dtype(df_cleaned[column]):
-                median_value = df_cleaned[column].median()
-                df_cleaned[column] = df_cleaned[column].fillna(median_value)
-                logger.info(f"Filled missing values in {column} with median: {median_value}")
-            else:
-                mode_value = df_cleaned[column].mode()[0]
-                df_cleaned[column] = df_cleaned[column].fillna(mode_value)
-                logger.info(f"Filled missing values in {column} with mode: {mode_value}")
+            # Imputing here would leak holdout statistics into training.
+            logger.info("Leaving missing predictors for split-specific preprocessing")
 
     duplicate_count = int(df_cleaned.duplicated().sum())
     if duplicate_count:

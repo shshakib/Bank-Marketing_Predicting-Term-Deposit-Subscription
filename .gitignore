@@ -32,6 +32,7 @@ htmlcov/
 .coverage
 coverage.xml
 .cache
+.pytest_cache/
 
 # Ignore build/output directories
 build/

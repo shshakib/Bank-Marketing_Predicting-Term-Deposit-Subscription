@@ -16,8 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/api/ .
 
 # The image includes artifacts as a fallback. docker-compose mounts
-# ./models/trained over this directory so retrained local models are served
-# without rebuilding the image during development.
+# ./models/trained over this directory; restart the service after retraining.
 COPY models/trained/*.pkl models/trained/
 
 EXPOSE 8000

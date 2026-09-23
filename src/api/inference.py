@@ -37,7 +37,9 @@ def _artifact_roots() -> list[Path]:
 
     configured_dir = os.getenv(MODEL_DIR_ENV)
     if configured_dir:
-        roots.append(Path(configured_dir))
+        # An explicit deployment directory is authoritative. Falling back can
+        # silently serve a stale model or mix artifacts from different runs.
+        return [Path(configured_dir)]
 
     current_file = Path(__file__).resolve()
     roots.extend([
@@ -58,12 +60,12 @@ def _artifact_roots() -> list[Path]:
 
 
 def _artifact_path(file_name: str) -> Path:
-    """Find a model artifact locally, or return the first expected location."""
-    candidates = [root / file_name for root in _artifact_roots()]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return candidates[0]
+    """Resolve both artifacts from the same directory, never separate roots."""
+    roots = _artifact_roots()
+    for root in roots:
+        if (root / MODEL_FILE).is_file() and (root / PREPROCESSOR_FILE).is_file():
+            return root / file_name
+    return roots[0] / file_name
 
 
 MODEL_PATH = _artifact_path(MODEL_FILE)
@@ -79,6 +81,12 @@ def load_artifacts() -> None:
         PREPROCESSOR_PATH = _artifact_path(PREPROCESSOR_FILE)
         model = joblib.load(MODEL_PATH)
         preprocessor = joblib.load(PREPROCESSOR_PATH)
+        names = [name.replace("num__", "").replace("cat__", "")
+                 for name in preprocessor.get_feature_names_out()]
+        if model.n_features_in_ != len(names):
+            raise ValueError("Model and preprocessor have incompatible feature counts")
+        if hasattr(model, "feature_names_in_") and list(model.feature_names_in_) != names:
+            raise ValueError("Model and preprocessor have incompatible feature names or order")
         MODEL_LOAD_ERROR = None
     except Exception as exc:
         model = None

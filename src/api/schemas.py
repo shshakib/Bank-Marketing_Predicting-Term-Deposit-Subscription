@@ -52,7 +52,7 @@ class BankPredictionRequest(BaseModel):
     marital: str = Field(..., description="Marital status")
     education: str = Field(..., description="Education level")
     default: str = Field(..., description="Has credit in default: yes/no")
-    balance: float = Field(..., description="Average yearly balance in euros")
+    balance: float = Field(..., allow_inf_nan=False, description="Average yearly balance in euros")
     housing: str = Field(..., description="Has housing loan: yes/no")
     loan: str = Field(..., description="Has personal loan: yes/no")
     contact: str = Field(..., description="Contact communication type")

@@ -64,11 +64,16 @@ The screenshots below highlight the main application interface, API layer, exper
 
 ## Setup
 
+Use Python 3.11 (the version used by Docker and CI); the pinned dependencies
+are not compatible with Python 3.14. Install the UI dependencies as well if
+you plan to run Streamlit locally.
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+pip install -r streamlit_app/requirements.txt
 ```
 
 On macOS/Linux, activate with:
@@ -95,21 +100,24 @@ python src/visualization/create_plots.py `
   --output-dir reports/figures
 ```
 
-Create the production feature matrix and preprocessing artifact:
+Optionally export a feature matrix for exploration. This fits preprocessing on
+all rows, so it must not be used to evaluate or train the production model:
 
 ```bash
 python src/features/engineer.py `
   --input data/processed/cleaned_bank_data.csv `
   --output data/processed/featured_bank_data.csv `
-  --preprocessor models/trained/preprocessor.pkl
+  --preprocessor models/trained/preprocessor_exploratory.pkl
 ```
 
-Train the selected production model:
+Train the selected production model from the **cleaned, unencoded data**.
+Training splits the data first, fits preprocessing on training rows only, and
+saves both `bank_deposit_model.pkl` and its matching `preprocessor.pkl`:
 
 ```bash
 python src/models/train_model.py `
   --config configs/model_config.yaml `
-  --data data/processed/featured_bank_data.csv `
+  --data data/processed/cleaned_bank_data.csv `
   --models-dir models
 ```
 
@@ -132,7 +140,7 @@ Example final-training command with MLflow:
 ```bash
 python src/models/train_model.py `
   --config configs/model_config.yaml `
-  --data data/processed/featured_bank_data.csv `
+  --data data/processed/cleaned_bank_data.csv `
   --models-dir models `
   --mlflow-tracking-uri http://localhost:5555
 ```
@@ -149,6 +157,11 @@ python src/models/compare_models.py `
 ```
 
 By default this uses 100 Monte Carlo CV iterations for Logistic Regression and LDA. The GBM command uses the selected GBM configuration unless `--full-gbm-grid` is provided.
+
+Grid search fits preprocessing separately within each cross-validation fold.
+Subscription (`deposit=1`) is the positive class: sensitivity is subscription
+recall, and specificity is the true-negative rate. Older comparison reports
+used the opposite metric names; rerun comparison to generate current results.
 
 For the with-duration feature matrix:
 
@@ -182,6 +195,11 @@ curl -X POST "http://localhost:8000/predict" `
 
 The response includes `subscription_probability`, `probability_range`, and `top_model_factors`. The probability range is a simple display range around the score, not a statistical confidence interval. The health endpoint reports the loaded model/preprocessor paths and returns HTTP 503 if either artifact is unavailable.
 
+Pickle artifacts are not committed. On a fresh clone, run cleaning and training
+before starting the API or building Docker images. If `MODEL_DIR` is set, it
+must contain both matching artifacts; the API will not fall back to another
+directory. Restart the API after retraining to load the new files.
+
 ## Streamlit
 
 Run locally:
@@ -200,7 +218,7 @@ Build and run FastAPI plus Streamlit:
 docker compose up --build
 ```
 
-During local Docker Compose runs, `./models/trained` is mounted into the FastAPI container so retrained model artifacts are served without rebuilding the image. The image still copies the artifacts as a fallback for standalone Docker runs.
+During local Docker Compose runs, `./models/trained` is mounted into the FastAPI container. After retraining, run `docker compose restart fastapi` to load the new artifacts without rebuilding the image. The image also copies the artifacts for standalone Docker runs.
 
 Open:
 
@@ -216,7 +234,7 @@ The workflows in `.github/workflows/` run the same pipeline:
 2. Generate the EDA figures
 3. Engineer production and with-duration comparison features
 4. Run model comparison and log it to MLflow
-5. Train `bank_deposit_model.pkl`
+5. Train `bank_deposit_model.pkl` and its matching preprocessor from cleaned data
 6. Build and publish the FastAPI container
 
 Docker image publishing is optional for manual runs. To push images to Docker Hub, configure these GitHub repository settings:
@@ -228,3 +246,14 @@ When publishing is enabled, the workflow pushes:
 
 - `docker.io/<DOCKERHUB_USERNAME>/bank-marketing-fastapi`
 - `docker.io/<DOCKERHUB_USERNAME>/bank-marketing-streamlit`
+
+## Regression Tests
+
+```bash
+pip install -r requirements-test.txt
+python -m pytest tests -q
+```
+
+Tests cover missing data, holdout and cross-validation preprocessing isolation,
+metric definitions, artifact loading, and single/batch API predictions. The
+Regression Tests workflow runs on pushes and pull requests.

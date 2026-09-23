@@ -44,14 +44,14 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     df_featured = df.copy()
 
     for column in df_featured.select_dtypes(include=["object", "string"]).columns:
-        df_featured[column] = df_featured[column].astype(str).str.strip().str.lower()
+        df_featured[column] = df_featured[column].str.strip().str.lower()
 
     if TARGET_COLUMN in df_featured.columns and df_featured[TARGET_COLUMN].dtype == object:
         df_featured[TARGET_COLUMN] = df_featured[TARGET_COLUMN].map({"no": 0, "yes": 1}).astype(int)
 
     for column in BINARY_FEATURES:
         if column in df_featured.columns:
-            df_featured[column] = df_featured[column].map({"no": 0, "yes": 1, "unknown": 0}).astype(int)
+            df_featured[column] = df_featured[column].map({"no": 0, "yes": 1, "unknown": 0})
 
     return df_featured
 
@@ -116,7 +116,11 @@ def run_feature_engineering(
     output_file: str | Path,
     preprocessor_file: str | Path,
 ) -> pd.DataFrame:
-    """Create model-ready features and persist the fitted preprocessor."""
+    """Export exploratory features; production training fits its own preprocessor.
+
+    This export sees every row and must not be used for holdout evaluation or
+    overwrite the production preprocessor saved by train_model.py.
+    """
     logger.info(f"Loading data from {input_file}")
     df = pd.read_csv(input_file)
 

@@ -83,7 +83,7 @@ jobs:
           python src/features/engineer.py \
             --input data/processed/cleaned_bank_data.csv \
             --output data/processed/featured_bank_data.csv \
-            --preprocessor models/trained/preprocessor.pkl
+            --preprocessor models/trained/preprocessor_exploratory.pkl
 
       - name: Build with-duration diagnostic features
         run: |
@@ -101,6 +101,7 @@ jobs:
         with:
           name: processed-data
           path: |
+            data/processed/cleaned_bank_data.csv
             data/processed/featured_bank_data.csv
             data/processed/featured_bank_data_with_duration.csv
 
@@ -115,7 +116,7 @@ jobs:
         with:
           name: preprocessors
           path: |
-            models/trained/preprocessor.pkl
+            models/trained/preprocessor_exploratory.pkl
             models/trained/preprocessor_with_duration.pkl
 
   model-training:
@@ -182,7 +183,7 @@ jobs:
         run: |
           python src/models/train_model.py \
             --config configs/model_config.yaml \
-            --data data/processed/featured_bank_data.csv \
+            --data data/processed/cleaned_bank_data.csv \
             --models-dir models \
             --mlflow-tracking-uri http://localhost:5555
 

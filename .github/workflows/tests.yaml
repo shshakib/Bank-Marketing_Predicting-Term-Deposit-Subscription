@@ -8,6 +8,27 @@ permissions:
   contents: read
 
 jobs:
+  streamlit-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: streamlit_app/requirements.txt
+      - run: python -m pip install -r streamlit_app/requirements.txt
+      - run: python -m pip check
+      - name: Import the standalone UI dependencies
+        run: python -c "import pandas, numpy, pyarrow, streamlit, plotly"
+      - name: Render a table with the standalone UI environment
+        run: |
+          python - <<'PY'
+          from streamlit.testing.v1 import AppTest
+          app = AppTest.from_string("import streamlit as st; import pandas as pd; st.dataframe(pd.DataFrame({'contribution': [0.1]}))").run()
+          assert not app.exception, list(app.exception)
+          assert len(app.dataframe) == 1
+          PY
   tests:
     runs-on: ubuntu-latest
     steps:

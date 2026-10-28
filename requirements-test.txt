@@ -1,3 +1,6 @@
 -r requirements.txt
 # Compatible with the Starlette TestClient used by FastAPI 0.95.2.
 httpx==0.24.1
+-r streamlit_app/requirements.txt
+nbclient==0.10.2
+nbformat==5.10.4

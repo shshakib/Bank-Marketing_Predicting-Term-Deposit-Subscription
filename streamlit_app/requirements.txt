@@ -1,3 +1,8 @@
-streamlit>=1.24.0
+streamlit==1.40.2
+plotly==5.24.1
 requests>=2.28.0
 pandas==1.5.3
+# pandas 1.5 wheels require the NumPy 1.x ABI; match training and serving.
+numpy==1.24.3
+# Match the tested MLflow/notebook environment; newer Arrow requires NumPy 2.
+pyarrow==11.0.0

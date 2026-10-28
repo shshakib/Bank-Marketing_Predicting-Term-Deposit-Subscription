@@ -4,6 +4,7 @@ Expected artifacts:
 
 - `bank_deposit_model.pkl`
 - `preprocessor.pkl`
+- `shap_background.pkl` (training-only reference data and artifact fingerprints)
 - `bank_deposit_model_metrics.yaml`
 - `bank_model_comparison.yaml`
 - `bank_model_comparison.csv`
@@ -14,6 +15,11 @@ Pickle files are generated locally and ignored by Git. Production training
 creates the model and `preprocessor.pkl` together from cleaned, unencoded data.
 The feature-export command should use `preprocessor_exploratory.pkl` so it
 cannot overwrite the preprocessor used by the API.
+
+Deploy the model, preprocessor, and SHAP background from the same training run.
+Restart the API after replacing them. The Dockerfile includes all three and CI
+uploads the background with the trained model. Old artifacts can still score
+but explanations remain unavailable until retraining generates the background.
 
 The committed comparison reports are historical results produced before the
 preprocessing fixes. Their sensitivity/specificity labels are reversed relative

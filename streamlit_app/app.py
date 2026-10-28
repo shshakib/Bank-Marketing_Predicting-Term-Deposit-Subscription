@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 import pandas as pd
+import plotly.graph_objects as go
 import requests
 import streamlit as st
 
@@ -97,6 +98,54 @@ def factor_importance_series(factors: dict[str, float]) -> pd.Series:
     return pd.Series(factors, name="Importance")
 
 
+FEATURE_LABELS = {
+    "age": "Age", "balance": "Balance", "day": "Contact day",
+    "campaign": "Campaign contacts", "previous": "Previous contacts",
+    "default": "Credit in default", "housing": "Housing loan", "loan": "Personal loan",
+    "job": "Job", "marital": "Marital status", "education": "Education",
+    "contact": "Contact type", "month": "Contact month", "poutcome": "Previous outcome",
+}
+
+
+def render_explanation(prediction: dict[str, Any], customer: dict[str, Any]) -> None:
+    st.subheader("Why this prediction?")
+    explanation = prediction.get("explanation")
+    if not explanation:
+        st.info(prediction.get("explanation_error") or "SHAP explanations are unavailable for this model.")
+        return
+    ordered = sorted(explanation["contributions"].items(), key=lambda item: abs(item[1]), reverse=True)
+    base = explanation["base_probability"]
+    probability = explanation["prediction_probability"]
+    st.caption(
+        f"Reference probability: {base:.1%}, averaged over "
+        f"{explanation['background_size']} training examples. "
+        "Each contribution moves this customer's score up or down from that reference."
+    )
+    labels = [f"{FEATURE_LABELS.get(name, name)} = {customer.get(name, '')}" for name, _ in ordered]
+    changes = [100 * value for _, value in ordered]
+    fig = go.Figure(go.Waterfall(
+        orientation="h", measure=["absolute"] + ["relative"] * len(ordered) + ["total"],
+        y=["Reference"] + labels + ["Prediction"],
+        x=[100 * base] + changes + [0],
+        text=[f"{base:.1%}"] + [f"{change:+.2f} pp" for change in changes] + [f"{probability:.1%}"],
+        textposition="auto", increasing={"marker": {"color": "#15803d"}},
+        decreasing={"marker": {"color": "#b45309"}}, totals={"marker": {"color": "#2563eb"}},
+        connector={"line": {"color": "#94a3b8"}},
+    ))
+    fig.update_layout(height=570, showlegend=False, margin=dict(l=0, r=0, t=10, b=0),
+                      xaxis_title="Subscription probability (%)", yaxis={"autorange": "reversed"})
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("Green increases the score; orange decreases it. pp = percentage points. "
+               "These explain the model's prediction, not causes of customer behavior. "
+               "Correlated inputs and the reference sample can affect the attribution.")
+    with st.expander("All feature contributions"):
+        st.dataframe(pd.DataFrame({
+            "Feature": [FEATURE_LABELS.get(name, name) for name, _ in ordered],
+            "Customer value": [str(customer.get(name, "")) for name, _ in ordered],
+            "Contribution (percentage points)": changes,
+        }), hide_index=True, use_container_width=True)
+
+
 api_endpoint = get_api_endpoint()
 
 st.title("Bank Marketing Term Deposit Prediction")
@@ -185,6 +234,8 @@ with right:
     st.subheader("Prediction")
 
     if predict_button:
+        # A failed rescore must not leave an older customer's explanation visible.
+        st.session_state.pop("prediction", None)
         with st.spinner("Scoring customer..."):
             try:
                 started_at = time.time()
@@ -202,6 +253,7 @@ with right:
 
         st.metric("Predicted deposit", label)
         st.metric("Subscription probability", f"{probability:.1%}")
+        st.caption("The model predicts YES at a subscription probability of 50% or higher.")
         st.progress(min(max(probability, 0.0), 1.0))
 
         lower, upper = prediction["probability_range"]
@@ -209,10 +261,13 @@ with right:
         metric_col1.metric("Probability range", f"{lower:.1%} - {upper:.1%}")
         metric_col2.metric("API latency", f"{st.session_state.get('latency', 0):.2f}s")
 
+        render_explanation(prediction, st.session_state.last_payload)
+
         factors = prediction.get("top_model_factors", {})
         if factors:
-            st.subheader("Global Model Factors")
-            st.bar_chart(factor_importance_series(factors))
+            with st.expander("Overall model feature importance"):
+                st.caption("These built-in importances describe the whole model, not this customer's SHAP explanation.")
+                st.bar_chart(factor_importance_series(factors))
     else:
         st.info("No prediction yet.")
 

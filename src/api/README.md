@@ -56,3 +56,17 @@ curl -X POST "http://localhost:8000/predict" \
 The response returns `subscription_probability`, `probability_range`, and
 `top_model_factors`. The probability range is a simple display range around the
 score and should not be interpreted as a statistical confidence interval.
+
+`explanation` contains probability-space TreeSHAP values for this customer:
+`base_probability`, unrounded `prediction_probability`, signed `contributions`
+grouped by original input, and `background_size`. Sum the baseline and all
+contributions to reconstruct the score. Multiply contributions by 100 to display
+percentage points. `top_model_factors` still describes global model importance.
+
+Training produces `shap_background.pkl`; deploy it with the matching model and
+preprocessor, and restart the API. `/health` reports `explanations_available`
+separately from model readiness. Missing or stale backgrounds keep predictions
+available but return `explanation: null` and an `explanation_error` message.
+GradientBoosting and RandomForest are supported; other configured estimators
+can score without explanations. `/batch-predict` returns the same contract for
+each customer. SHAP values explain model scores, not causal effects.

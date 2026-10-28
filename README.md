@@ -247,6 +247,57 @@ When publishing is enabled, the workflow pushes:
 - `docker.io/<DOCKERHUB_USERNAME>/bank-marketing-fastapi`
 - `docker.io/<DOCKERHUB_USERNAME>/bank-marketing-streamlit`
 
+## SHAP explanations
+
+Every prediction now includes a local TreeSHAP explanation for the production
+Gradient Boosting model (Random Forest is also supported). Streamlit shows a
+waterfall from the reference probability to the customer's score and a table
+of all 14 original input fields. Positive contributions increase subscription
+probability; negative contributions decrease it. The chart uses percentage
+points, and the API uses probability units (0.10 = 10 percentage points).
+
+Training saves `shap_background.pkl` alongside the model and preprocessor. It
+contains up to 100 reproducibly sampled **training-only** encoded rows, the
+original-field mapping, holdout indices for analysis, and artifact fingerprints.
+The API builds the explainer once when artifacts load and verifies the fingerprints
+before use. Deploy all three pickle files together, then restart the API.
+
+For an existing checkout, install the updated dependencies and retrain:
+
+```powershell
+pip install -r requirements.txt -r streamlit_app/requirements.txt
+python src/models/train_model.py --config configs/model_config.yaml --data data/processed/cleaned_bank_data.csv --models-dir models
+```
+
+`/predict` and `/batch-predict` return an `explanation` object containing
+`base_probability`, the unrounded `prediction_probability`, signed
+`contributions` grouped by original input field, and `background_size`.
+Baseline plus all contributions reconstructs the score (verified within 1e-6).
+Grouping sums encoded-column attributions; it is not a separate grouped-feature
+Shapley calculation. Existing `top_model_factors` remain global importances.
+
+Missing/stale SHAP artifacts or an unsupported model do not prevent scoring:
+`explanation` is null and `explanation_error` explains why. `/health` separately
+reports `explanations_available`. Streamlit displays that state explicitly.
+
+Open [04_model_explainability.ipynb](notebooks/04_model_explainability.ipynb)
+for global grouped importance, an encoded-feature beeswarm, and an individual
+waterfall. It validates the saved model and dataset, analyzes only the recorded
+holdout rows, and exports plots under `reports/figures/shap/`. To execute all cells
+using the active virtual environment:
+
+```powershell
+pip install -r requirements-test.txt
+python scripts/execute_explanations.py
+```
+
+The default analysis uses 200 held-out customers. Set `BANK_SHAP_SAMPLE_SIZE` to
+adjust it. `BANK_SHAP_MODEL_DIR`, `BANK_SHAP_DATA`, and `BANK_SHAP_OUTPUT_DIR`
+allow a separate model/data/output location. The explainer uses a sampled model
+baseline, not a population subscription rate. SHAP describes model behavior;
+it does not establish causation or guarantee correctness. Correlated features
+and the reference sample affect attribution. The notebook discusses these limits.
+
 ## Regression Tests
 
 ```bash
@@ -255,5 +306,6 @@ python -m pytest tests -q
 ```
 
 Tests cover missing data, holdout and cross-validation preprocessing isolation,
-metric definitions, artifact loading, and single/batch API predictions. The
+metric definitions, artifact loading, single/batch explanations and their sums,
+Streamlit chart interactions, and execution of the explainability notebook. The
 Regression Tests workflow runs on pushes and pull requests.

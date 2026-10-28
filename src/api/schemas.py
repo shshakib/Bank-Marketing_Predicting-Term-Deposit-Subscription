@@ -96,6 +96,17 @@ class BankPredictionRequest(BaseModel):
         }
 
 
+class ShapExplanation(BaseModel):
+    method: str = "TreeSHAP"
+    output: str = "subscription_probability"
+    base_probability: float
+    prediction_probability: float
+    contributions: dict[str, float] = Field(
+        ..., description="Signed contributions in probability units, summed across each input's encoded columns."
+    )
+    background_size: int
+
+
 class PredictionResponse(BaseModel):
     """Prediction payload returned by the scoring service.
 
@@ -118,3 +129,5 @@ class PredictionResponse(BaseModel):
         description="Global model feature importances from the trained estimator.",
     )
     prediction_time: str
+    explanation: ShapExplanation | None = None
+    explanation_error: str | None = None

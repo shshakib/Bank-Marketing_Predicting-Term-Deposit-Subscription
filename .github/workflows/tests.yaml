@@ -19,5 +19,6 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-test.txt
+            streamlit_app/requirements.txt
       - run: python -m pip install -r requirements-test.txt
       - run: python -m pytest tests -q

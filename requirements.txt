@@ -12,3 +12,9 @@ pyyaml==6.0
 joblib==1.3.1
 setuptools==65.5.0
 ipykernel==6.29.5
+# Compatible notebook plotting integration for Matplotlib 3.7.
+ipython==8.26.0
+matplotlib-inline==0.1.7
+shap==0.46.0
+# Keep the SHAP JIT dependency compatible with NumPy 1.24 / Python 3.11.
+numba==0.60.0

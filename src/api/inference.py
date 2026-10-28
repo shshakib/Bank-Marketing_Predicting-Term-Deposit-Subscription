@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -11,8 +12,10 @@ import joblib
 import pandas as pd
 
 try:
+    from .explanations import load_explainer
     from .schemas import BankPredictionRequest, PredictionResponse
 except ImportError:
+    from explanations import load_explainer
     from schemas import BankPredictionRequest, PredictionResponse
 
 MODEL_FILE = "bank_deposit_model.pkl"
@@ -23,6 +26,9 @@ PROBABILITY_RANGE_MARGIN = 0.10
 MODEL_LOAD_ERROR: str | None = None
 model: Any | None = None
 preprocessor: Any | None = None
+explainer: Any | None = None
+EXPLANATION_ERROR: str | None = None
+logger = logging.getLogger(__name__)
 
 
 def _artifact_roots() -> list[Path]:
@@ -75,6 +81,9 @@ PREPROCESSOR_PATH = _artifact_path(PREPROCESSOR_FILE)
 def load_artifacts() -> None:
     """Load model/preprocessor artifacts and capture startup diagnostics."""
     global model, preprocessor, MODEL_LOAD_ERROR, MODEL_PATH, PREPROCESSOR_PATH
+    global explainer, EXPLANATION_ERROR
+    explainer = None
+    EXPLANATION_ERROR = "Model artifacts are unavailable."
 
     try:
         MODEL_PATH = _artifact_path(MODEL_FILE)
@@ -92,6 +101,15 @@ def load_artifacts() -> None:
         model = None
         preprocessor = None
         MODEL_LOAD_ERROR = str(exc)
+        return
+
+    try:
+        explainer = load_explainer(model, preprocessor, MODEL_PATH, PREPROCESSOR_PATH)
+        EXPLANATION_ERROR = None
+    except Exception as exc:
+        # Older artifacts can still score; never fabricate a local explanation.
+        EXPLANATION_ERROR = str(exc)
+        logger.warning("SHAP unavailable: %s", exc)
 
 
 load_artifacts()
@@ -127,6 +145,8 @@ def get_model_health() -> dict[str, object]:
         "model_artifact": _artifact_metadata(MODEL_PATH),
         "preprocessor_artifact": _artifact_metadata(PREPROCESSOR_PATH),
         "model_load_error": MODEL_LOAD_ERROR,
+        "explanations_available": explainer is not None,
+        "explanation_error": EXPLANATION_ERROR,
     }
 
 
@@ -225,6 +245,21 @@ def predict_subscription(request: BankPredictionRequest) -> PredictionResponse:
     prediction_label = int(probability >= 0.5)
     predicted_deposit = "yes" if prediction_label else "no"
 
+    explanation = None
+    explanation_error = EXPLANATION_ERROR
+    if explainer is not None:
+        try:
+            base, contributions = explainer.explain(processed_features)
+            explanation = {
+                "base_probability": base,
+                "prediction_probability": probability,
+                "contributions": contributions.iloc[0].to_dict(),
+                "background_size": len(explainer.bundle["background"]),
+            }
+        except Exception:
+            logger.exception("Could not explain prediction")
+            explanation_error = "SHAP explanation could not be computed for this prediction."
+
     return PredictionResponse(
         predicted_deposit=predicted_deposit,
         subscription_probability=round(probability, 4),
@@ -232,6 +267,8 @@ def predict_subscription(request: BankPredictionRequest) -> PredictionResponse:
         probability_range=_probability_range(probability),
         top_model_factors=_top_global_model_factors(loaded_model, loaded_preprocessor),
         prediction_time=datetime.now().isoformat(),
+        explanation=explanation,
+        explanation_error=explanation_error,
     )
 
 

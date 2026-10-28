@@ -34,6 +34,7 @@ from src.features.engineer import (
     BINARY_FEATURES, CATEGORICAL_FEATURES, NUMERICAL_FEATURES,
     create_features, create_preprocessor, to_dense_frame,
 )
+from src.api.explanations import save_background
 
 try:
     import mlflow
@@ -193,6 +194,7 @@ def main(args: argparse.Namespace) -> None:
         stratify=y,
     )
 
+    training_indices, test_indices = X_train.index.tolist(), X_test.index.tolist()
     preprocessor = create_preprocessor(X_train.columns)
     X_train = to_dense_frame(preprocessor.fit_transform(X_train), preprocessor)
     X_test = to_dense_frame(preprocessor.transform(X_test), preprocessor)
@@ -212,6 +214,11 @@ def main(args: argparse.Namespace) -> None:
     save_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, save_path)
     joblib.dump(preprocessor, save_path.parent / "preprocessor.pkl")
+    save_background(
+        model, preprocessor, X_train, save_path, save_path.parent / "preprocessor.pkl",
+        dataset_hash=joblib.hash(data), test_indices=test_indices,
+        training_indices=training_indices, random_state=model_cfg.get("random_state", 42),
+    )
     logger.info(f"Saved trained model to: {save_path}")
 
     metrics_path = save_path.parent / f"{model_name}_metrics.yaml"

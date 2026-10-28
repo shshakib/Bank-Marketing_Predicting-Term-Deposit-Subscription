@@ -193,6 +193,7 @@ jobs:
           name: trained-model
           path: |
             models/trained/bank_deposit_model.pkl
+            models/trained/shap_background.pkl
             models/trained/bank_deposit_model_metrics.yaml
             models/trained/preprocessor.pkl
             models/trained/bank_model_comparison.yaml
@@ -246,7 +247,7 @@ jobs:
           curl -fsS -X POST "http://localhost:8000/predict" \
             -H "Content-Type: application/json" \
             -d '{"age":41,"job":"technician","marital":"married","education":"secondary","default":"no","balance":1270,"housing":"yes","loan":"no","contact":"cellular","day":15,"month":"may","campaign":2,"previous":0,"poutcome":"unknown"}' \
-            | grep -q "subscription_probability"
+            | python3 -c 'import json, sys; r=json.load(sys.stdin); e=r["explanation"]; assert e is not None, r; assert abs(e["base_probability"] + sum(e["contributions"].values()) - e["prediction_probability"]) < 1e-6'
 
           docker logs test-api
 
